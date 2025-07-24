@@ -1,0 +1,811 @@
+// Game State Management
+class GameState {
+    constructor() {
+        this.currentScreen = 'mainMenu';
+        this.currentLevel = null;
+        this.gameMode = null; // 'story' or 'training'
+        this.score = 0;
+        this.combo = 0;
+        this.playerHP = 100;
+        this.maxHP = 100;
+        this.wordsTyped = 0;
+        this.correctWords = 0;
+        this.startTime = null;
+        this.endTime = null;
+        this.isGameRunning = false;
+        this.currentWord = '';
+        this.monsters = [];
+        this.activeMonster = null;
+        this.monsterSpawnTimer = 0;
+        this.bossMode = false;
+        this.particles = [];
+        this.screenShake = 0;
+    }
+
+    reset() {
+        this.score = 0;
+        this.combo = 0;
+        this.playerHP = this.maxHP;
+        this.wordsTyped = 0;
+        this.correctWords = 0;
+        this.startTime = null;
+        this.endTime = null;
+        this.isGameRunning = false;
+        this.currentWord = '';
+        this.monsters = [];
+        this.activeMonster = null;
+        this.monsterSpawnTimer = 0;
+        this.bossMode = false;
+        this.particles = [];
+        this.screenShake = 0;
+    }
+
+    calculateWPM() {
+        if (!this.startTime) return 0;
+        const timeElapsed = (Date.now() - this.startTime) / 60000; // minutes
+        return Math.round(this.correctWords / timeElapsed) || 0;
+    }
+
+    calculateAccuracy() {
+        if (this.wordsTyped === 0) return 100;
+        return Math.round((this.correctWords / this.wordsTyped) * 100);
+    }
+}
+
+// Game Data
+const gameData = {
+    levels: {
+        forest: {
+            id: 'forest',
+            title: 'Whispering Woods',
+            background: '../assets/images/background1.png',
+            words: ['cat', 'dog', 'run', 'jump', 'tree', 'bird', 'fish', 'rock', 'leaf', 'wind', 'fire', 'moon', 'star', 'path', 'cave'],
+            duration: 120,
+            monsterTypes: ['goblin', 'slime']
+        },
+        cave: {
+            id: 'cave',
+            title: 'Dark Caverns',
+            background: '../assets/images/background2.jpg',
+            words: ['shadow', 'crystal', 'tunnel', 'dragon', 'treasure', 'ancient', 'mystic', 'portal', 'chamber', 'darkness', 'whisper', 'legend', 'magic', 'secret', 'power'],
+            duration: 150,
+            monsterTypes: ['orc', 'spider']
+        },
+        castle: {
+            id: 'castle',
+            title: 'Ancient Castle',
+            background: '../assets/images/background1.png',
+            words: ['The brave knight stood guard.', 'Ancient magic flows through these halls.', 'Beware the dragon\'s fiery breath!', 'Victory belongs to the swift and true.', 'Honor guides the warrior\'s blade.'],
+            duration: 180,
+            monsterTypes: ['knight', 'wizard']
+        },
+        volcano: {
+            id: 'volcano',
+            title: 'Volcanic Depths',
+            background: '../assets/images/background2.jpg',
+            words: ['In the depths of the molten volcano, where fire and fury reign supreme, only the most skilled typist can survive the ultimate challenge and emerge victorious against the ancient dragon lord.'],
+            duration: 300,
+            monsterTypes: ['dragon'],
+            isBoss: true
+        }
+    },
+    
+    monsters: {
+        goblin: { hp: 50, speed: 2, image: '../assets/images/monster1.gif' },
+        slime: { hp: 30, speed: 1, image: '../assets/images/monster2.webp' },
+        orc: { hp: 80, speed: 3, image: '../assets/images/monster1.gif' },
+        spider: { hp: 60, speed: 4, image: '../assets/images/monster2.webp' },
+        knight: { hp: 100, speed: 2, image: '../assets/images/monster1.gif' },
+        wizard: { hp: 120, speed: 1, image: '../assets/images/monster2.webp' },
+        dragon: { hp: 300, speed: 1, image: '../assets/images/monster1.gif' }
+    }
+};
+
+// Global game state
+const gameState = new GameState();
+
+// DOM Elements
+const screens = {
+    mainMenu: document.getElementById('mainMenu'),
+    levelSelect: document.getElementById('levelSelect'),
+    gameScreen: document.getElementById('gameScreen'),
+    gameOverScreen: document.getElementById('gameOverScreen'),
+    leaderboardScreen: document.getElementById('leaderboardScreen')
+};
+
+const ui = {
+    scoreValue: document.getElementById('scoreValue'),
+    comboValue: document.getElementById('comboValue'),
+    playerHP: document.getElementById('playerHP'),
+    progressFill: document.getElementById('progressFill'),
+    wpmValue: document.getElementById('wpmValue'),
+    accuracyValue: document.getElementById('accuracyValue'),
+    targetWord: document.getElementById('targetWord'),
+    gameInput: document.getElementById('gameInput'),
+    keyboardHint: document.getElementById('keyboardHint')
+};
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// Audio elements
+const audio = {
+    background: document.getElementById('backgroundMusic'),
+    monsterRoar: document.getElementById('monsterRoarSound'),
+    swordSlash: document.getElementById('swordSlashSound')
+};
+
+// Screen Management
+function showScreen(screenName) {
+    // Hide all screens
+    Object.values(screens).forEach(screen => {
+        screen.classList.remove('active');
+    });
+    
+    // Show target screen
+    if (screens[screenName]) {
+        screens[screenName].classList.add('active');
+        gameState.currentScreen = screenName;
+    }
+}
+
+// Event Listeners Setup
+function setupEventListeners() {
+    // Main Menu buttons
+    document.getElementById('storyModeBtn').addEventListener('click', () => {
+        gameState.gameMode = 'story';
+        showScreen('levelSelect');
+    });
+
+    document.getElementById('trainingModeBtn').addEventListener('click', () => {
+        gameState.gameMode = 'training';
+        startGame('forest'); // Start training with forest level
+    });
+
+    document.getElementById('leaderboardBtn').addEventListener('click', () => {
+        showLeaderboard();
+    });
+
+    // Level selection
+    document.querySelectorAll('.level-card').forEach(card => {
+        card.addEventListener('click', () => {
+            const levelId = card.dataset.level;
+            startGame(levelId);
+        });
+    });
+
+    document.getElementById('backToMenuBtn').addEventListener('click', () => {
+        showScreen('mainMenu');
+    });
+
+    // Game input
+    document.getElementById('gameInput').addEventListener('input', handleInput);
+    document.getElementById('gameInput').addEventListener('keydown', handleKeyDown);
+
+    // Game over buttons
+    document.getElementById('playAgainBtn').addEventListener('click', () => {
+        if (gameState.currentLevel) {
+            startGame(gameState.currentLevel);
+        }
+    });
+
+    document.getElementById('mainMenuBtn').addEventListener('click', () => {
+        showScreen('mainMenu');
+    });
+
+    // Leaderboard
+    document.getElementById('backFromLeaderboardBtn').addEventListener('click', () => {
+        showScreen('mainMenu');
+    });
+}
+
+// Particle System for Visual Effects
+class Particle {
+    constructor(x, y, type = 'spark') {
+        this.x = x;
+        this.y = y;
+        this.type = type;
+        this.vx = (Math.random() - 0.5) * 8;
+        this.vy = (Math.random() - 0.5) * 8;
+        this.life = 1.0;
+        this.decay = 0.02;
+        this.size = Math.random() * 4 + 2;
+        this.color = this.getColor();
+    }
+
+    getColor() {
+        switch(this.type) {
+            case 'spark': return `hsl(${45 + Math.random() * 15}, 100%, ${50 + Math.random() * 30}%)`;
+            case 'blood': return `hsl(${0 + Math.random() * 10}, 80%, ${30 + Math.random() * 20}%)`;
+            case 'magic': return `hsl(${280 + Math.random() * 40}, 80%, ${60 + Math.random() * 20}%)`;
+            default: return '#ffd700';
+        }
+    }
+
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.vy += 0.2; // gravity
+        this.vx *= 0.98; // air resistance
+        this.life -= this.decay;
+        this.size *= 0.98;
+    }
+
+    draw(ctx) {
+        if (this.life <= 0) return;
+        
+        ctx.save();
+        ctx.globalAlpha = this.life;
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+
+    isDead() {
+        return this.life <= 0 || this.size <= 0.5;
+    }
+}
+
+// Enhanced Monster Class with destruction effects
+class Monster {
+    constructor(type, word) {
+        this.type = type;
+        this.word = word;
+        this.hp = gameData.monsters[type].hp;
+        this.maxHP = this.hp;
+        this.speed = gameData.monsters[type].speed;
+        this.x = canvas.width + 50;
+        this.y = Math.random() * (canvas.height - 100) + 50;
+        this.width = 80;
+        this.height = 80;
+        this.image = new Image();
+        this.image.src = gameData.monsters[type].image;
+        this.isDestroyed = false;
+        this.animationFrame = 0;
+        this.hitFlash = 0;
+        this.destructionParticles = [];
+    }
+
+    update() {
+        if (!this.isDestroyed) {
+            this.x -= this.speed;
+            this.animationFrame += 0.1;
+        } else {
+            // Update destruction animation
+            this.animationFrame += 0.2;
+            this.destructionParticles.forEach((particle, index) => {
+                particle.update();
+                if (particle.isDead()) {
+                    this.destructionParticles.splice(index, 1);
+                }
+            });
+        }
+        
+        if (this.hitFlash > 0) {
+            this.hitFlash -= 0.1;
+        }
+    }
+
+    draw(ctx) {
+        if (this.isDestroyed && this.destructionParticles.length === 0) return;
+        
+        ctx.save();
+        
+        if (!this.isDestroyed) {
+            // Flash effect when hit
+            if (this.hitFlash > 0) {
+                ctx.filter = 'brightness(200%) saturate(150%)';
+            }
+            
+            // Breathing animation
+            ctx.translate(this.x + this.width/2, this.y + this.height/2);
+            ctx.scale(Math.sin(this.animationFrame) * 0.1 + 1, 1);
+            ctx.drawImage(this.image, -this.width/2, -this.height/2, this.width, this.height);
+            ctx.restore();
+            
+            // Draw word above monster with glow effect
+            ctx.save();
+            ctx.shadowColor = '#ffd700';
+            ctx.shadowBlur = 10;
+            ctx.fillStyle = '#ffd700';
+            ctx.font = 'bold 18px Courier New';
+            ctx.textAlign = 'center';
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 3;
+            ctx.strokeText(this.word, this.x + this.width/2, this.y - 10);
+            ctx.fillText(this.word, this.x + this.width/2, this.y - 10);
+            ctx.restore();
+            
+            // Draw HP bar with gradient
+            const barWidth = this.width;
+            const barHeight = 8;
+            const hpPercentage = this.hp / this.maxHP;
+            
+            ctx.fillStyle = '#333';
+            ctx.fillRect(this.x, this.y - 30, barWidth, barHeight);
+            
+            const gradient = ctx.createLinearGradient(this.x, 0, this.x + barWidth, 0);
+            if (hpPercentage > 0.5) {
+                gradient.addColorStop(0, '#4CAF50');
+                gradient.addColorStop(1, '#8BC34A');
+            } else if (hpPercentage > 0.25) {
+                gradient.addColorStop(0, '#FFC107');
+                gradient.addColorStop(1, '#FF9800');
+            } else {
+                gradient.addColorStop(0, '#F44336');
+                gradient.addColorStop(1, '#E91E63');
+            }
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(this.x, this.y - 30, barWidth * hpPercentage, barHeight);
+            
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(this.x, this.y - 30, barWidth, barHeight);
+        } else {
+            // Draw destruction particles
+            this.destructionParticles.forEach(particle => {
+                particle.draw(ctx);
+            });
+        }
+        
+        ctx.restore();
+    }
+
+    takeDamage(damage) {
+        this.hp -= damage;
+        this.hitFlash = 1.0;
+        
+        // Create hit particles
+        for (let i = 0; i < 5; i++) {
+            gameState.particles.push(new Particle(
+                this.x + this.width/2 + (Math.random() - 0.5) * this.width,
+                this.y + this.height/2 + (Math.random() - 0.5) * this.height,
+                'blood'
+            ));
+        }
+        
+        if (this.hp <= 0) {
+            this.destroy();
+        }
+    }
+
+    destroy() {
+        this.isDestroyed = true;
+        
+        // Create destruction particles
+        for (let i = 0; i < 15; i++) {
+            this.destructionParticles.push(new Particle(
+                this.x + this.width/2 + (Math.random() - 0.5) * this.width,
+                this.y + this.height/2 + (Math.random() - 0.5) * this.height,
+                'spark'
+            ));
+        }
+        
+        // Add screen shake effect
+        gameState.screenShake = 10;
+    }
+
+    isOffScreen() {
+        return this.x + this.width < 0;
+    }
+
+    reachedPlayer() {
+        return this.x <= 50 && !this.isDestroyed;
+    }
+}
+
+// Game Logic
+function startGame(levelId) {
+    gameState.reset();
+    gameState.currentLevel = levelId;
+    gameState.isGameRunning = true;
+    gameState.startTime = Date.now();
+    
+    const level = gameData.levels[levelId];
+    if (!level) {
+        console.error('Level not found:', levelId);
+        return;
+    }
+
+    // Set background
+    screens.gameScreen.style.backgroundImage = `url('${level.background}')`;
+    
+    showScreen('gameScreen');
+    
+    // Initialize game
+    spawnMonster();
+    updateUI();
+    startGameLoop();
+    
+    // Play background music
+    audio.background.volume = 0.3;
+    audio.background.play().catch(e => console.log('Audio play failed:', e));
+}
+
+function spawnMonster() {
+    const level = gameData.levels[gameState.currentLevel];
+    if (!level) return;
+    
+    const words = level.words;
+    const monsterTypes = level.monsterTypes;
+    
+    const word = words[Math.floor(Math.random() * words.length)];
+    const monsterType = monsterTypes[Math.floor(Math.random() * monsterTypes.length)];
+    
+    const monster = new Monster(monsterType, word);
+    gameState.monsters.push(monster);
+    gameState.activeMonster = monster;
+    
+    // Check if this is a boss level
+    if (level.isBoss) {
+        gameState.bossMode = true;
+        monster.hp *= 2; // Boss monsters are stronger
+        monster.maxHP = monster.hp;
+    }
+    
+    gameState.currentWord = word;
+    ui.targetWord.textContent = word;
+    ui.gameInput.value = '';
+    ui.gameInput.focus();
+    
+    // Reset spawn timer
+    gameState.monsterSpawnTimer = 0;
+}
+
+function handleInput(event) {
+    if (!gameState.isGameRunning) return;
+    
+    const input = event.target.value;
+    const target = gameState.currentWord;
+    
+    // Check if word is completed
+    if (input === target) {
+        handleCorrectWord();
+    } else if (!target.startsWith(input)) {
+        // Wrong input - shake effect
+        ui.gameInput.classList.add('shake');
+        setTimeout(() => ui.gameInput.classList.remove('shake'), 500);
+    }
+}
+
+function handleKeyDown(event) {
+    if (event.key === 'Enter' && gameState.isGameRunning) {
+        const input = event.target.value;
+        if (input === gameState.currentWord) {
+            handleCorrectWord();
+        } else {
+            handleIncorrectWord();
+        }
+    }
+}
+
+function handleCorrectWord() {
+    if (!gameState.activeMonster || gameState.activeMonster.isDestroyed) return;
+    
+    gameState.correctWords++;
+    gameState.wordsTyped++;
+    gameState.combo++;
+    
+    // Calculate score with combo bonus
+    const baseScore = gameState.currentWord.length * 10;
+    const comboBonus = gameState.combo > 1 ? gameState.combo * 5 : 0;
+    gameState.score += baseScore + comboBonus;
+    
+    // Damage monster
+    const damage = 50;
+    gameState.activeMonster.takeDamage(damage);
+    
+    // Create success particles
+    for (let i = 0; i < 10; i++) {
+        gameState.particles.push(new Particle(
+            canvas.width / 2 + (Math.random() - 0.5) * 100,
+            canvas.height / 2 + (Math.random() - 0.5) * 100,
+            'magic'
+        ));
+    }
+    
+    // Play sword slash sound
+    audio.swordSlash.currentTime = 0;
+    audio.swordSlash.volume = 0.6;
+    audio.swordSlash.play().catch(e => console.log('Audio play failed:', e));
+    
+    // Spawn new monster after a short delay if current one is destroyed
+    if (gameState.activeMonster.isDestroyed) {
+        setTimeout(() => {
+            if (gameState.isGameRunning) {
+                spawnMonster();
+            }
+        }, 1000);
+    }
+    
+    updateUI();
+    
+    // Add visual feedback
+    ui.targetWord.classList.add('pulse');
+    setTimeout(() => ui.targetWord.classList.remove('pulse'), 1000);
+}
+
+function handleIncorrectWord() {
+    gameState.wordsTyped++;
+    gameState.combo = 0;
+    gameState.playerHP -= 10;
+    
+    // Play monster roar sound
+    audio.monsterRoar.currentTime = 0;
+    audio.monsterRoar.play().catch(e => console.log('Audio play failed:', e));
+    
+    // Check game over
+    if (gameState.playerHP <= 0) {
+        endGame(false);
+        return;
+    }
+    
+    // Spawn new monster
+    spawnMonster();
+    updateUI();
+    
+    // Add visual feedback
+    ui.gameInput.classList.add('shake');
+    setTimeout(() => ui.gameInput.classList.remove('shake'), 500);
+}
+
+function updateUI() {
+    ui.scoreValue.textContent = gameState.score;
+    ui.comboValue.textContent = gameState.combo;
+    ui.playerHP.textContent = gameState.playerHP;
+    ui.wpmValue.textContent = gameState.calculateWPM();
+    ui.accuracyValue.textContent = gameState.calculateAccuracy();
+    
+    // Update progress bar (based on time or words completed)
+    const level = gameData.levels[gameState.currentLevel];
+    if (level && gameState.startTime) {
+        const elapsed = (Date.now() - gameState.startTime) / 1000;
+        const progress = Math.min((elapsed / level.duration) * 100, 100);
+        ui.progressFill.style.width = progress + '%';
+        
+        // Check if time is up
+        if (elapsed >= level.duration) {
+            endGame(true);
+        }
+    }
+}
+
+function startGameLoop() {
+    const gameLoop = setInterval(() => {
+        if (!gameState.isGameRunning) {
+            clearInterval(gameLoop);
+            return;
+        }
+        
+        updateGame();
+        updateUI();
+        drawGame();
+    }, 50); // 20 FPS for smooth animation
+}
+
+function updateGame() {
+    // Update spawn timer
+    gameState.monsterSpawnTimer++;
+    
+    // Update particles
+    gameState.particles.forEach((particle, index) => {
+        particle.update();
+        if (particle.isDead()) {
+            gameState.particles.splice(index, 1);
+        }
+    });
+    
+    // Update screen shake
+    if (gameState.screenShake > 0) {
+        gameState.screenShake *= 0.9;
+        if (gameState.screenShake < 0.1) {
+            gameState.screenShake = 0;
+        }
+    }
+    
+    // Update all monsters
+    gameState.monsters.forEach((monster, index) => {
+        monster.update();
+        
+        // Remove destroyed monsters
+        if (monster.isDestroyed && monster.destructionParticles.length === 0) {
+            gameState.monsters.splice(index, 1);
+            if (monster === gameState.activeMonster) {
+                gameState.activeMonster = null;
+            }
+        }
+        
+        // Check if monster reached player
+        if (monster.reachedPlayer()) {
+            gameState.playerHP -= 20;
+            monster.destroy();
+            
+            // Play monster roar sound
+            audio.monsterRoar.currentTime = 0;
+            audio.monsterRoar.volume = 0.7;
+            audio.monsterRoar.play().catch(e => console.log('Audio play failed:', e));
+            
+            // Add screen shake
+            gameState.screenShake = 15;
+            
+            if (gameState.playerHP <= 0) {
+                endGame(false);
+                return;
+            }
+        }
+        
+        // Remove off-screen monsters
+        if (monster.isOffScreen()) {
+            gameState.monsters.splice(index, 1);
+            if (monster === gameState.activeMonster) {
+                gameState.activeMonster = null;
+            }
+        }
+    });
+    
+    // Spawn new monster if needed
+    if (!gameState.activeMonster && gameState.monsterSpawnTimer > 60) { // 3 seconds at 20 FPS
+        spawnMonster();
+    }
+    
+    // Training mode: unlimited time, focus on accuracy
+    if (gameState.gameMode === 'training') {
+        // No time limit in training mode
+        return;
+    }
+}
+
+function drawGame() {
+    // Apply screen shake
+    ctx.save();
+    if (gameState.screenShake > 0) {
+        const shakeX = (Math.random() - 0.5) * gameState.screenShake;
+        const shakeY = (Math.random() - 0.5) * gameState.screenShake;
+        ctx.translate(shakeX, shakeY);
+    }
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw background gradient with animated colors
+    const time = Date.now() * 0.001;
+    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+    gradient.addColorStop(0, `rgba(${44 + Math.sin(time) * 10}, ${24 + Math.cos(time) * 5}, 16, 0.3)`);
+    gradient.addColorStop(1, `rgba(${74 + Math.sin(time * 0.7) * 15}, ${44 + Math.cos(time * 0.7) * 8}, 26, 0.3)`);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw all monsters
+    gameState.monsters.forEach(monster => {
+        monster.draw(ctx);
+    });
+    
+    // Draw particles
+    gameState.particles.forEach(particle => {
+        particle.draw(ctx);
+    });
+    
+    // Draw player area indicator with glow effect
+    ctx.save();
+    ctx.shadowColor = '#ffd700';
+    ctx.shadowBlur = 20;
+    ctx.fillStyle = 'rgba(255, 215, 0, 0.1)';
+    ctx.fillRect(0, 0, 60, canvas.height);
+    ctx.restore();
+    
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([5, 5]);
+    ctx.lineDashOffset = -time * 20;
+    ctx.strokeRect(0, 0, 60, canvas.height);
+    ctx.setLineDash([]);
+    
+    // Draw player icon with animation
+    ctx.save();
+    ctx.translate(30, canvas.height / 2);
+    ctx.scale(1 + Math.sin(time * 2) * 0.1, 1);
+    ctx.fillStyle = '#ffd700';
+    ctx.font = 'bold 28px Courier New';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#ffd700';
+    ctx.shadowBlur = 15;
+    ctx.fillText('⚔️', 0, 0);
+    ctx.restore();
+    
+    // Draw combo multiplier if active
+    if (gameState.combo > 1) {
+        ctx.save();
+        ctx.fillStyle = `rgba(255, 215, 0, ${0.8 + Math.sin(time * 5) * 0.2})`;
+        ctx.font = 'bold 24px Courier New';
+        ctx.textAlign = 'center';
+        ctx.shadowColor = '#ffd700';
+        ctx.shadowBlur = 10;
+        ctx.fillText(`${gameState.combo}x COMBO!`, canvas.width / 2, 50);
+        ctx.restore();
+    }
+    
+    ctx.restore();
+}
+
+function endGame(victory) {
+    gameState.isGameRunning = false;
+    gameState.endTime = Date.now();
+    
+    // Stop background music
+    audio.background.pause();
+    
+    // Update final stats
+    document.getElementById('gameOverTitle').textContent = victory ? 'Victory!' : 'Game Over';
+    document.getElementById('finalScore').textContent = gameState.score;
+    document.getElementById('finalWordsTyped').textContent = gameState.correctWords;
+    document.getElementById('finalAccuracy').textContent = gameState.calculateAccuracy();
+    document.getElementById('finalWPM').textContent = gameState.calculateWPM();
+    
+    // Save high score
+    saveHighScore();
+    
+    showScreen('gameOverScreen');
+}
+
+// Leaderboard Management
+function saveHighScore() {
+    const highScores = getHighScores();
+    const newScore = {
+        score: gameState.score,
+        wpm: gameState.calculateWPM(),
+        accuracy: gameState.calculateAccuracy(),
+        level: gameState.currentLevel,
+        date: new Date().toLocaleDateString()
+    };
+    
+    highScores.push(newScore);
+    highScores.sort((a, b) => b.score - a.score);
+    highScores.splice(10); // Keep only top 10
+    
+    localStorage.setItem('typingQuestHighScores', JSON.stringify(highScores));
+}
+
+function getHighScores() {
+    const stored = localStorage.getItem('typingQuestHighScores');
+    return stored ? JSON.parse(stored) : [];
+}
+
+function showLeaderboard() {
+    const highScores = getHighScores();
+    const leaderboardList = document.getElementById('leaderboardList');
+    
+    if (highScores.length === 0) {
+        leaderboardList.innerHTML = '<p style="color: #d4c4a8; text-align: center;">No scores yet. Play a game to set a record!</p>';
+    } else {
+        leaderboardList.innerHTML = highScores.map((score, index) => `
+            <div class="leaderboard-entry">
+                <span>#${index + 1}</span>
+                <span>Score: ${score.score}</span>
+                <span>WPM: ${score.wpm}</span>
+                <span>Accuracy: ${score.accuracy}%</span>
+                <span>${score.date}</span>
+            </div>
+        `).join('');
+    }
+    
+    showScreen('leaderboardScreen');
+}
+
+// Initialize Game
+function initGame() {
+    setupEventListeners();
+    showScreen('mainMenu');
+    
+    // Set canvas size
+    canvas.width = 800;
+    canvas.height = 400;
+    
+    console.log('Typing Quest: Word Warriors initialized!');
+}
+
+// Start the game when page loads
+document.addEventListener('DOMContentLoaded', initGame);
+
