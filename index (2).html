@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Typing Quest: Word Warriors</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Main Game Container -->
+    <div id="gameContainer">
+        <!-- Main Menu Screen -->
+        <div id="mainMenu" class="screen active">
+            <div class="menu-content">
+                <h1 class="game-title">Typing Quest: Word Warriors</h1>
+                <div class="menu-buttons">
+                    <button id="storyModeBtn" class="menu-btn">Story Mode</button>
+                    <button id="trainingModeBtn" class="menu-btn">Training Mode</button>
+                    <button id="leaderboardBtn" class="menu-btn">Leaderboard</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Level Selection Screen -->
+        <div id="levelSelect" class="screen">
+            <div class="level-content">
+                <h2>Select Level</h2>
+                <div class="levels-grid">
+                    <div class="level-card" data-level="forest">
+                        <h3>Whispering Woods</h3>
+                        <p>3-4 letter words</p>
+                    </div>
+                    <div class="level-card" data-level="cave">
+                        <h3>Dark Caverns</h3>
+                        <p>5-6 letter words</p>
+                    </div>
+                    <div class="level-card" data-level="castle">
+                        <h3>Ancient Castle</h3>
+                        <p>Sentences & punctuation</p>
+                    </div>
+                    <div class="level-card" data-level="volcano">
+                        <h3>Volcanic Depths</h3>
+                        <p>Boss Battle</p>
+                    </div>
+                </div>
+                <button id="backToMenuBtn" class="back-btn">Back to Menu</button>
+            </div>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="gameScreen" class="screen">
+            <!-- Game UI -->
+            <div class="game-ui">
+                <div class="ui-top">
+                    <div class="score-display">
+                        <span>Score: <span id="scoreValue">0</span></span>
+                        <span>Combo: <span id="comboValue">0</span></span>
+                    </div>
+                    <div class="progress-bar">
+                        <div id="progressFill" class="progress-fill"></div>
+                    </div>
+                    <div class="health-display">
+                        <span>HP: <span id="playerHP">100</span>/100</span>
+                    </div>
+                </div>
+                
+                <div class="ui-stats">
+                    <span>WPM: <span id="wpmValue">0</span></span>
+                    <span>Accuracy: <span id="accuracyValue">100</span>%</span>
+                </div>
+            </div>
+
+            <!-- Game Canvas Area -->
+            <div class="game-area">
+                <canvas id="gameCanvas" width="800" height="400"></canvas>
+            </div>
+
+            <!-- Input Area -->
+            <div class="input-area">
+                <div class="target-word">
+                    <span id="targetWord">Type this word</span>
+                </div>
+                <input type="text" id="gameInput" placeholder="Start typing..." autocomplete="off" spellcheck="false">
+                <div class="keyboard-hint">
+                    <span id="keyboardHint">Press any key to start</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="gameOverScreen" class="screen">
+            <div class="game-over-content">
+                <h2 id="gameOverTitle">Game Over</h2>
+                <div class="final-stats">
+                    <p>Final Score: <span id="finalScore">0</span></p>
+                    <p>Words Typed: <span id="finalWordsTyped">0</span></p>
+                    <p>Accuracy: <span id="finalAccuracy">0</span>%</p>
+                    <p>WPM: <span id="finalWPM">0</span></p>
+                </div>
+                <div class="game-over-buttons">
+                    <button id="playAgainBtn" class="menu-btn">Play Again</button>
+                    <button id="mainMenuBtn" class="menu-btn">Main Menu</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Leaderboard Screen -->
+        <div id="leaderboardScreen" class="screen">
+            <div class="leaderboard-content">
+                <h2>Leaderboard</h2>
+                <div id="leaderboardList" class="leaderboard-list">
+                    <!-- Leaderboard entries will be populated by JavaScript -->
+                </div>
+                <button id="backFromLeaderboardBtn" class="back-btn">Back to Menu</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audio Elements -->
+    <audio id="backgroundMusic" loop>
+        <source src="../assets/audio/background_music.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="monsterRoarSound">
+        <source src="../assets/audio/monster_roar.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="swordSlashSound">
+        <source src="../assets/audio/sword_slash.mp3" type="audio/mpeg">
+    </audio>
+
+    <script src="script.js"></script>
+</body>
+</html>
+
